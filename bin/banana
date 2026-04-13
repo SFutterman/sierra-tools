@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""
+🍌 Banana Counter — commit = 1 banana, PR = 5 bananas (a bunch!)
+Usage:
+  banana [note]          # log a commit
+  banana pr [note]       # log a PR (5 bananas)
+  banana stats           # show history
+  banana undo            # remove last entry
+"""
+
+import json
+import sys
+import random
+from datetime import datetime, date
+from pathlib import Path
+
+DATA_FILE = Path.home() / ".sierra" / "bananas.json"
+COMMIT_VALUE = 1
+PR_VALUE = 5  # a bunch!
+
+MONKEY_CHEERS = [
+    "🐒  ooh ooh aah aah! BANANA ACQUIRED.",
+    "🦍  *chest thump* ANOTHER ONE.",
+    "🐒  the monkey is PLEASED.",
+    "🍌  slipped another one in. smooth.",
+    "🦍  commit logged. the banana gods smile upon you.",
+    "🐒  OOH OOH. stack those bananas.",
+    "🍌  banana secured. keep going.",
+    "🦍  the troop grows stronger.",
+]
+
+PR_CHEERS = [
+    "🎉🍌🍌🍌🍌🍌  A WHOLE BUNCH!! PR DROPPED!",
+    "🦍  *goes absolutely feral*  PR = 5 BANANAS. LEGEND.",
+    "🍌🍌🍌🍌🍌  THE BUNCH HAS BEEN DELIVERED.",
+    "🐒  PR UP! FIVE BANANAS. YOU ARE THE ALPHA MONKEY.",
+    "🎉  PR opened = banana HAUL. 5 bananas earned!",
+]
+
+NEW_HIGH_CHEERS = [
+    "🏆🍌  NEW HIGH SCORE!! YOU ABSOLUTE UNIT.",
+    "🏆  PERSONAL BEST SMASHED. THE MONKEY KING.",
+    "🔥🍌  NEW RECORD. THIS IS YOUR DAY.",
+    "🏆  PB DESTROYED. FRAME THIS DAY.",
+]
+
+
+def load():
+    if not DATA_FILE.exists():
+        return {"bananas": [], "daily_high": 0}
+    return json.loads(DATA_FILE.read_text())
+
+
+def save(data):
+    DATA_FILE.write_text(json.dumps(data, indent=2))
+
+
+def today_str():
+    return date.today().isoformat()
+
+
+def today_count(data):
+    today = today_str()
+    return sum(e["count"] for e in data["bananas"] if e["timestamp"].startswith(today))
+
+
+def log_banana(kind="commit", note=""):
+    data = load()
+    count = PR_VALUE if kind == "pr" else COMMIT_VALUE
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "type": kind,
+        "note": note,
+        "count": count,
+    }
+    data["bananas"].append(entry)
+
+    total_today = today_count(data)
+    pb = data.get("daily_high", 0)
+    new_pb = total_today > pb
+    if new_pb:
+        data["daily_high"] = total_today
+
+    save(data)
+
+    # Print the reward
+    print()
+    if kind == "pr":
+        print(f"  {random.choice(PR_CHEERS)}")
+    else:
+        print(f"  {random.choice(MONKEY_CHEERS)}")
+
+    if new_pb:
+        print(f"\n  {random.choice(NEW_HIGH_CHEERS)}")
+        print(f"  New PB: {total_today} 🍌")
+    else:
+        remaining = pb - total_today
+        bar = "🍌" * min(total_today, 20)
+        print(f"\n  Today: {bar}  {total_today}")
+        if pb > 0:
+            print(f"  PB: {pb}  ({remaining} away from record)")
+    print()
+
+
+def cmd_stats():
+    data = load()
+    if not data["bananas"]:
+        print("\n  No bananas yet. Run 'banana' after your next commit!\n")
+        return
+
+    # Group by day
+    days = {}
+    for e in data["bananas"]:
+        day = e["timestamp"][:10]
+        days[day] = days.get(day, 0) + e["count"]
+
+    pb = data.get("daily_high", 0)
+    total = sum(e["count"] for e in data["bananas"])
+    today = today_str()
+    today_total = days.get(today, 0)
+
+    # Sort last 14 days
+    sorted_days = sorted(days.items())[-14:]
+    max_val = max(v for _, v in sorted_days) if sorted_days else 1
+
+    print()
+    print("  🍌 BANANA STATS 🍌")
+    print(f"  All-time total: {total}  |  PB: {pb}  |  Today: {today_total}")
+    print()
+    print("  Last 14 days:")
+    for day, count in sorted_days:
+        bar_len = round((count / max_val) * 20)
+        bar = "█" * bar_len
+        marker = " ← today" if day == today else ""
+        pb_marker = " 🏆" if count == pb and count > 0 else ""
+        print(f"  {day}  {bar:<20}  {count}{pb_marker}{marker}")
+    print()
+
+
+def cmd_undo():
+    data = load()
+    if not data["bananas"]:
+        print("\n  Nothing to undo.\n")
+        return
+    removed = data["bananas"].pop()
+    # Recalculate PB
+    days = {}
+    for e in data["bananas"]:
+        day = e["timestamp"][:10]
+        days[day] = days.get(day, 0) + e["count"]
+    data["daily_high"] = max(days.values()) if days else 0
+    save(data)
+    print(f"\n  Undone: {removed['type']} ({removed['count']} 🍌) — {removed.get('note', '')}\n")
+
+
+def main():
+    args = sys.argv[1:]
+
+    if not args:
+        log_banana("commit")
+    elif args[0] == "pr":
+        note = " ".join(args[1:])
+        log_banana("pr", note)
+    elif args[0] == "stats":
+        cmd_stats()
+    elif args[0] == "undo":
+        cmd_undo()
+    else:
+        # Treat entire arg as a note for a commit
+        note = " ".join(args)
+        log_banana("commit", note)
+
+
+if __name__ == "__main__":
+    main()

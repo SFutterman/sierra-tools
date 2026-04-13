@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Claude Code CLI shortcuts
+
+case "$1" in
+  plugins)
+    open ~/.claude/plugins
+    ;;
+  alias)
+    shift
+    claude "Create an alias that $*"
+    ;;
+  *)
+    echo "Usage: cc <subcommand>"
+    echo ""
+    echo "Subcommands:"
+    echo "  plugins          Open the Claude Code plugins directory"
+    echo "  alias <desc>     Open Claude to create an alias (e.g. cc alias \"opens my downloads folder\")"
+    ;;
+esac
